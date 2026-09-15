@@ -1,0 +1,80 @@
+# yun139-fastapi config
+# Copy to config/config.yaml and fill in real values.
+
+server:
+  host: "0.0.0.0"
+  port: 3000
+  # Clients must send: Authorization: Bearer <api_key>
+  api_key: "sk-my-local-key"
+
+yun139:
+  # Multiple accounts can be listed for simple round-robin failover, same
+  # idea as Gemini-FastAPI's `gemini.clients` list.
+  clients:
+    - id: "client-a"
+      # The "Basic ..." token captured from a real browser session against
+      # https://appmail.mail.10086.cn — session-scoped, will eventually
+      # expire and need re-capturing (see README "Refreshing credentials").
+      authorization: ""
+      user_id: ""
+      source_channel: "101"
+
+  upstream_url: "https://ai.yun.139.com/api/outer/assistant/chat/v2/add"
+
+  # yun139 doesn't expose a stable multi-turn session the way Gemini's web
+  # API does, so every request is sent as one self-contained turn built
+  # from the FULL messages[] history — not just the last message. This is
+  # the fix for "generic answers, ignores tool context": the whole point
+  # is that system prompts / tool schemas / prior turns now actually reach
+  # the model instead of being dropped.
+  # How much text (system prompt + tool manifest + full turn history) we'll
+  # pack into one request before dropping the oldest turns. Size this
+  # against your REAL Hermes payload, not a guess: your tool-schema
+  # injection alone has been measured around ~24K tokens (~70-100K chars
+  # depending on language mix) — if this budget is smaller than that, the
+  # tool manifest + system prompt alone can eat the whole budget within a
+  # couple of turns, silently dropping all prior conversation ("resets to
+  # a new conversation" after N turns). When context.py actually truncates,
+  # it now logs a warning with the dropped-turn count — watch for that and
+  # raise this number if it fires.
+  max_chars_per_request: 120000
+  # "truncate": drop oldest turns first, keep system prompt + most recent
+  #   turns verbatim, once max_chars_per_request is exceeded.
+  # "none": send everything as-is and let upstream reject/degrade if it's
+  #   too long.
+  oversized_context_strategy: "truncate"
+
+  idle_timeout_s: 150 # no new bytes for this long -> treat stream as done
+  hard_timeout_s: 200 # absolute cap regardless of activity
+
+  # Off by default. Turning this on makes 灵犀 do a live web search before
+  # every single reply, which adds real wall-clock latency — enough that
+  # an otherwise-fine call can blow past Hermes's own client-side request
+  # timeout and get reported as "外部依赖超时" even though yun139 itself
+  # returned 200 just fine (check the httpx log line timestamps vs when
+  # Hermes gave up if you're unsure which side timed out). Only turn this
+  # on if you specifically want search-augmented answers, and widen
+  # Hermes's timeout setting for this model to match.
+  enable_network_search: false
+
+  # Off by default. When on, the assistant may decide to rewrite your
+  # request into an image prompt and generate images (Seedream model),
+  # returned as markdown image links with 24h-expiring signed URLs —
+  # download/re-host them if you need them to outlive that window.
+  # IMPORTANT: there can be a 50s+ gap with zero bytes between the text
+  # reply finishing and the image actually being ready, so raise
+  # idle_timeout_s (e.g. to 120) when you turn this on, or the watchdog
+  # will cut the stream before the image arrives.
+  enable_image_generation: false
+
+tools:
+  # yun139's underlying model has no native function-calling API. When
+  # enabled, we append a tool manifest to the prompt asking the model to
+  # reply with a fenced ```json block to invoke a tool, then parse that
+  # block back out into a standard OpenAI `tool_calls` response. This is
+  # best-effort — quality depends entirely on how well the underlying
+  # model follows the instruction. See README "Tool calling caveats".
+  enabled: true
+
+model:
+  id: "yun139-lingxi"

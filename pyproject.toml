@@ -1,0 +1,15 @@
+[project]
+name = "yun139-fastapi"
+version = "0.1.0"
+description = "Web-based 139mail (yun.139.com) AI assistant wrapped into an OpenAI-compatible API, structured after Nativu5/Gemini-FastAPI."
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "httpx>=0.27.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.8.0",
+]
+
+[tool.uv]
+package = false
