@@ -16,6 +16,7 @@ yun139:
       # https://appmail.mail.10086.cn — session-scoped, will eventually
       # expire and need re-capturing (see README "Refreshing credentials").
       authorization: ""
+      user_id: ""
       source_channel: "101"
 
   upstream_url: "https://ai.yun.139.com/api/outer/assistant/chat/v2/add"
