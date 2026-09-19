@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
+from .attachments import ATTACHMENT_COMMAND
 from .config import ClientCfg
 
 logger = logging.getLogger("yun139")
@@ -21,7 +22,21 @@ def _beijing_iso_now() -> str:
     return datetime.now(BEIJING_TZ).strftime("%Y-%m-%dT%H:%M:%S+08:00")
 
 
-def _build_payload(dialogue: str, enable_network_search: bool, enable_image_generation: bool) -> dict:
+def _build_payload(
+    dialogue: str,
+    enable_network_search: bool,
+    enable_image_generation: bool,
+    attachment: dict | None = None,
+    attachment_file_name: str | None = None,
+) -> dict:
+    ext_info = {"pcVersion": "1.7.0", "h5Version": "3.2.0", "dialogueType": "noAiEditDialogue"}
+    if attachment_file_name:
+        # Confirmed present alongside a populated attachment field in a
+        # real capture — unclear if it matters for multi-file attachments
+        # (only single-file has been captured), so we just use the first/
+        # only file's name for now.
+        ext_info["fileName"] = attachment_file_name
+
     return {
         "applicationType": "chat",
         "sessionId": "",
@@ -29,7 +44,11 @@ def _build_payload(dialogue: str, enable_network_search: bool, enable_image_gene
             "dialogue": dialogue,
             "prompt": "",
             "inputTime": _beijing_iso_now(),
-            "command": None,
+            # Confirmed from a real capture: non-null
+            # {"command":"036","subCommand":"036006"} accompanies a
+            # populated attachment — presumably signals "this turn
+            # includes an attachment" to the backend.
+            "command": ATTACHMENT_COMMAND if attachment else None,
             "resourceType": "0",
             "resourceId": "",
             "dialogueType": "0",
@@ -37,9 +56,7 @@ def _build_payload(dialogue: str, enable_network_search: bool, enable_image_gene
             "enableForceNetworkSearch": enable_network_search,
             "enableAllNetworkSearch": False,
             "enableAiSearch": False,
-            "extInfo": json.dumps(
-                {"pcVersion": "1.7.0", "h5Version": "3.2.0", "dialogueType": "noAiEditDialogue"}
-            ),
+            "extInfo": json.dumps(ext_info),
             "versionInfo": {"pcVersion": "1.7.0", "h5Version": "3.2.0"},
             # enableLlmDescribe is the switch that makes the assistant
             # rewrite the user's request into an image-gen prompt and
@@ -49,7 +66,7 @@ def _build_payload(dialogue: str, enable_network_search: bool, enable_image_gene
             # returns 24h-expiring signed URLs that must be consumed
             # promptly.
             "toolSetting": {"imageToolSetting": {"enableLlmDescribe": enable_image_generation}},
-            "attachment": {},
+            "attachment": attachment or {},
             "aiWritingSetting": {},
             "enableModelThinking": False,
             "enableKnowledgeAndNetworkSearch": False,
@@ -104,6 +121,19 @@ class UpstreamError(RuntimeError):
     pass
 
 
+def _render_placeholder_image_state(flow: dict) -> str:
+    """The first resultType-4 block is a placeholder that says the image is
+    still being generated. Emitting a visible text chunk here keeps the SSE
+    stream alive for clients that timeout on long silence, while still
+    waiting for the real file-bearing block to arrive."""
+    if flow.get("resultType") != 4:
+        return ""
+    file_list = flow.get("fileList") or []
+    if file_list:
+        return ""
+    return "\n\n正在为你生成图片，请稍候…"
+
+
 def _render_image_result(flow: dict) -> str:
     """resultType 4 = image-generation result (only appears when
     enableLlmDescribe is on and the model decided to generate an image).
@@ -125,6 +155,19 @@ def _render_image_result(flow: dict) -> str:
     return "\n".join(lines) if len(lines) > 1 else ""
 
 
+def _is_probable_image_generation_stream(flow: dict, enable_image_generation: bool) -> bool:
+    """Image generation can legally produce a text block first, then a
+    resultType-4 image block later. In that case a plain 'stop' on the
+    text block is not terminal yet, so we must not quit the stream until
+    either the image block arrives or the upstream goes quiet enough to
+    trigger the idle timeout."""
+    if not enable_image_generation:
+        return False
+    # The upstream uses resultType=1 for ordinary streamed text, including
+    # the text preamble emitted before the later resultType=4 image block.
+    return flow.get("resultType") in (0, 1, None)
+
+
 async def stream_reply(
     dialogue: str,
     client_cfg: ClientCfg,
@@ -133,13 +176,18 @@ async def stream_reply(
     hard_timeout_s: int,
     enable_network_search: bool = False,
     enable_image_generation: bool = False,
+    attachment: dict | None = None,
+    attachment_file_name: str | None = None,
 ) -> AsyncIterator[tuple[str, bool]]:
     """Yields (delta_text, is_final) pairs. is_final=True marks the chunk
     that carries (or coincides with) the terminal finishReason — same
     three-layer detection worked out for the Node version: in-stream
     field check, idle watchdog, and a leftover-buffer flush at the end.
     """
-    payload = _build_payload(dialogue, enable_network_search, enable_image_generation)
+    payload = _build_payload(
+        dialogue, enable_network_search, enable_image_generation,
+        attachment, attachment_file_name,
+    )
     payload["sourceChannel"] = client_cfg.source_channel
     payload["userId"] = client_cfg.user_id
 
@@ -210,16 +258,26 @@ async def stream_reply(
                         # keying off flowResult here would cut the stream
                         # before the image ever arrives.
                         finish_reason = top_finish or flow.get("finishReason")
-                        delta = (flow.get("outContent") or "") + _render_image_result(flow)
+                        delta = (flow.get("outContent") or "") + _render_placeholder_image_state(flow) + _render_image_result(flow)
+                        is_image_result = flow.get("resultType") == 4 and bool((flow.get("fileList") or []))
+                        is_placeholder_image = flow.get("resultType") == 4 and not (flow.get("fileList") or [])
                         is_final = bool(finish_reason and finish_reason != "processing")
+                        if enable_image_generation and not is_image_result and _is_probable_image_generation_stream(flow, enable_image_generation):
+                            # The real image-generation flow can emit a placeholder resultType-4
+                            # block with no fileList first, then the actual URL-bearing image later.
+                            # Treat the placeholder as non-terminal and only close when the actual
+                            # file-bearing result arrives.
+                            is_final = False
+                        if enable_image_generation and is_placeholder_image:
+                            is_final = False
                         logger.info(
-                            "[t+%.1fs] block index=%s finishReason=%s resultType=%s outContent=%r",
+                            "[t+%.1fs] block index=%s finishReason=%s resultType=%s outContent=%r image_result=%s placeholder=%s final=%s",
                             time.monotonic() - start, flow.get("index"), finish_reason,
-                            flow.get("resultType"), delta,
+                            flow.get("resultType"), delta, is_image_result, is_placeholder_image, is_final,
                         )
                         if delta or is_final:
                             yield delta, is_final
-                        if is_final:
+                        if is_final and not (enable_image_generation and not is_image_result):
                             return
 
                 # Loop ended (idle/hard timeout, or upstream closed) without

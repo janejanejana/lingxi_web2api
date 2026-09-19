@@ -13,12 +13,12 @@ class ClientCfg(BaseModel):
     id: str
     authorization: str
     user_id: str
-    source_channel: str = "101"
+    source_channel: str = "10175"
 
 
 class ServerCfg(BaseModel):
     host: str = "0.0.0.0"
-    port: int = 3000
+    port: int = 8000
     api_key: str = ""
 
 
@@ -29,6 +29,14 @@ class Yun139Cfg(BaseModel):
     oversized_context_strategy: str = "truncate"
     idle_timeout_s: int = 15
     hard_timeout_s: int = 120
+    # For streaming (stream:true) requests only: max seconds of silence
+    # before we send a bare SSE keepalive comment to the client, so its
+    # own read-timeout doesn't fire during a long quiet gap (e.g. image
+    # generation). No effect on non-streaming requests — a blocking JSON
+    # response has no way to signal "still working" mid-flight, which is
+    # exactly why non-streaming calls are far more prone to the client
+    # giving up before a slow (e.g. image-gen) reply ever arrives.
+    keepalive_interval_s: int = 8
     # The web assistant will do a live web search before answering when
     # this is on, which adds real latency per request — often enough to
     # blow past Hermes's own client-side timeout on an otherwise-working
@@ -53,6 +61,17 @@ class Yun139Cfg(BaseModel):
     # completely unaffected by this.
     image_intent_bypass: bool = True
     image_intent_keywords: list[str] | None = None  # None = use the built-in default list
+    # When on, an image_url data: URI found in the last user message gets
+    # uploaded to 139's cloud storage (the same backend used for generated
+    # images) and sent as a real attachment. Off disables attachment
+    # handling entirely — images just get silently dropped as before.
+    enable_attachments: bool = True
+    # Seconds to wait after an attachment finishes uploading before
+    # sending the chat request that references it. The upload backend and
+    # chat backend appear to be separate systems with a propagation gap —
+    # see the comment at the call site in server.py for what happens
+    # without this (silent rejection, empty reply).
+    post_upload_delay_s: float = 2.0
 
 
 class ToolsCfg(BaseModel):

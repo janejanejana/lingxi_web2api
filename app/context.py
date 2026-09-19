@@ -1,9 +1,44 @@
 from __future__ import annotations
 
+import base64
 import logging
+import re
 from typing import Any
 
 logger = logging.getLogger("yun139.context")
+
+_DATA_URL_RE = re.compile(r"^data:([^;]+);base64,(.*)$", re.DOTALL)
+
+
+def extract_attachment_from_messages(messages: list[dict]) -> tuple[bytes, str, str] | None:
+    """Looks at the LAST user message only. If its content is a list
+    containing an image_url part with a base64 data: URI (the standard
+    OpenAI multimodal shape), decodes it and returns
+    (file_bytes, filename, content_type). Returns None if there's nothing
+    to extract (plain string content, or no data: URI found)."""
+    for m in reversed(messages):
+        if m.get("role") != "user":
+            continue
+        content = m.get("content")
+        if not isinstance(content, list):
+            return None
+        for part in content:
+            if not isinstance(part, dict) or part.get("type") != "image_url":
+                continue
+            url = (part.get("image_url") or {}).get("url", "")
+            match = _DATA_URL_RE.match(url)
+            if not match:
+                continue
+            content_type = match.group(1)
+            try:
+                raw = base64.b64decode(match.group(2))
+            except Exception:
+                logger.warning("found an image_url data: URI but couldn't base64-decode it")
+                continue
+            ext = content_type.split("/")[-1].split("+")[0] or "png"
+            return raw, f"upload.{ext}", content_type
+        return None
+    return None
 
 
 def _flatten_content(content: Any) -> str:
@@ -23,9 +58,13 @@ def _flatten_content(content: Any) -> str:
 
 DEFAULT_IMAGE_INTENT_KEYWORDS = [
     "生成图片", "生成一张图", "生成一幅", "生成配图", "生成插画",
-    "画一张", "画个", "画一幅", "帮我画", "配一张图",
+    "画一张", "画个", "画一幅", "帮我画", "配一张图", "文生图",
+    "生成海报", "生成海报图", "生成壁纸", "生成头像", "生成插画",
+    "生成图像", "生成视觉", "做一张图", "做个图", "绘制图片",
     "draw a picture", "draw an image", "generate an image",
-    "generate a picture", "create an image", "text-to-image",
+    "generate a picture", "create an image", "text-to-image", "image generation",
+    "generate a poster", "create a poster", "render an image", "make a picture",
+    "make an image", "bild a picture", "create a visual", "generate artwork",
 ]
 
 
@@ -37,8 +76,23 @@ def extract_last_user_text(messages: list[dict]) -> str:
 
 
 def looks_like_image_request(text: str, keywords: list[str]) -> bool:
+    if not text or not text.strip():
+        return False
     lowered = text.lower()
-    return any(kw.lower() in lowered for kw in keywords)
+    for kw in keywords:
+        if not kw:
+            continue
+        if kw.lower() in lowered:
+            return True
+    # Some Hermes requests are phrased as a command-like prompt rather than
+    # plain English/Chinese keywords. Strip whitespace and match common
+    # image-generation verbs directly, as a fallback for prompts like
+    # '画图', '出图', '生成图'.
+    compact = "".join(ch for ch in lowered if not ch.isspace())
+    return any(
+        token in compact
+        for token in ["画图", "出图", "生成图", "文生图", "generateimage", "drawimage", "makeimage", "createimage"]
+    )
 
 
 ROLE_LABELS = {
