@@ -16,7 +16,6 @@ yun139:
       # https://appmail.mail.10086.cn — session-scoped, will eventually
       # expire and need re-capturing (see README "Refreshing credentials").
       authorization: ""
-      user_id: ""
       source_channel: "101"
 
   upstream_url: "https://ai.yun.139.com/api/outer/assistant/chat/v2/add"
@@ -44,8 +43,8 @@ yun139:
   #   too long.
   oversized_context_strategy: "truncate"
 
-  idle_timeout_s: 150 # no new bytes for this long -> treat stream as done
-  hard_timeout_s: 200 # absolute cap regardless of activity
+  idle_timeout_s: 3000 # no new bytes for this long -> treat stream as done
+  hard_timeout_s: 6000 # absolute cap regardless of activity
 
   # Off by default. Turning this on makes 灵犀 do a live web search before
   # every single reply, which adds real wall-clock latency — enough that
@@ -65,7 +64,18 @@ yun139:
   # reply finishing and the image actually being ready, so raise
   # idle_timeout_s (e.g. to 120) when you turn this on, or the watchdog
   # will cut the stream before the image arrives.
-  enable_image_generation: false
+  enable_image_generation: true
+  # If the last user message looks like an image request (matches one of
+  # image_intent_keywords), send it RAW instead of the fully-wrapped
+  # dialogue — skips system prompt / tool manifest / history entirely for
+  # that one call, matching the minimal format the app itself sends. This
+  # is what actually gets yun139's own image-intent detection to fire when
+  # Hermes's usual system-prompt/tool-schema wrapping is present. Doesn't
+  # affect normal (non-image) turns at all.
+  image_intent_bypass: true
+  # Leave unset (or omit) to use the built-in default keyword list; set
+  # this to override it entirely with your own.
+  # image_intent_keywords: ["生成图片", "画一张", "generate an image"]
 
 tools:
   # yun139's underlying model has no native function-calling API. When
