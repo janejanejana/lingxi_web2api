@@ -62,7 +62,6 @@ python run.py
 
 这些接口遵循 OpenAI 的 API 规范，允许你将灵犀直接接入现有的 AI 应用。
 
-- **`GET /v1/models`**: 列出所有可用的 Gemini 模型。
 - **`POST /v1/chat/completions`**: 统一聊天对话接口。
   - **流式传输**: 设置 `stream: true` 即可实时接收增量响应 (Stream Delta)。
   - **多模态支持**: 支持在消息中包含文本、图片以及文件上传。
@@ -71,47 +70,20 @@ python run.py
 
 ### 主要模型参数
 description: "通义qwen3.8-Max"
-
   enableNetworkSearch: true
-  
   enableSetThinking: true
-  
-  hasExclusive: false
-  
-  iconUrl: "https://yun.mcloud.139.com/aiassistant/static/icon/qwen.svg"
-  
   maxInputLength: 800000
-  
   modelType: "blian_qwen38_max"
-  
 description: "DeepSeek-V4-Pro"
-
   enableNetworkSearch: true
-  
   enableSetThinking: true
-  
-  hasExclusive: false
-  
-  iconUrl: "https://yun.mcloud.139.com/aiassistant/static/icon/deepseek.svg"
-  
   maxInputLength: 40000
-  
   modelType: "blian_deepseek_v4_pro"
-  
 description: "豆包-Seed-2.0-Lite"
-
   enableNetworkSearch: true
-  
   enableSetThinking: true
-  
-  hasExclusive: false
-  
-  iconUrl: "https://yun.mcloud.139.com/aiassistant/static/icon/huoshan.png"
-  
   maxInputLength: 40000
-  
   modelType: "vlm_huoshan_2_0_lite_thinking_vision"
-  
 
 ## 免责声明
 
