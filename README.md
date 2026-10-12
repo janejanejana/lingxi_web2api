@@ -69,6 +69,29 @@ python run.py
   - **工具调用**: 支持通过 `tools` 参数进行函数调用 (Function Calling)。
   - **结构化输出**: 支持 `response_format`，可严格遵循 JSON Schema。
 
+### 主要模型参数
+description: "通义qwen3.8-Max"
+  enableNetworkSearch: true
+  enableSetThinking: true
+  hasExclusive: false
+  iconUrl: "https://yun.mcloud.139.com/aiassistant/static/icon/qwen.svg"
+  maxInputLength: 800000
+  modelType: "blian_qwen38_max"
+description: "DeepSeek-V4-Pro"
+  enableNetworkSearch: true
+  enableSetThinking: true
+  hasExclusive: false
+  iconUrl: "https://yun.mcloud.139.com/aiassistant/static/icon/deepseek.svg"
+  maxInputLength: 40000
+  modelType: "blian_deepseek_v4_pro"
+description: "豆包-Seed-2.0-Lite"
+  enableNetworkSearch: true
+  enableSetThinking: true
+  hasExclusive: false
+  iconUrl: "https://yun.mcloud.139.com/aiassistant/static/icon/huoshan.png"
+  maxInputLength: 40000
+  modelType: "vlm_huoshan_2_0_lite_thinking_vision"
+
 ## 免责声明
 
 本项目与 中国移动 或 OpenAI 无关，仅供学习和研究使用。本项目使用了逆向工程 API，可能不符合 中国移动 服务条款。使用风险自负。
