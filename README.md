@@ -10,9 +10,9 @@
 
 ## 功能特性
 
-- 🔐 **无需API Key**：只需网页 Cookie，即可免费通过 API 调用 灵犀提供的通义Qwen-3.7-Plus、Deekseek-4.0-Pro、豆包Seed 2.0-lite（文生图）等模型。
+- 🔐 **无需API Key**：只需网页 Cookie，即可免费通过 API 调用 灵犀提供的通义Qwen-3.8-Max、Deekseek-4.0-Pro、豆包Seed 2.0-lite（文生图）等模型。
 - 🔍 **灵活的网络搜索**：搜索功能可通过网页/APP随时开关，模型响应更加准确。
-- 🖼️ **多模型支持**：在网页/APP随时切换大模型，通义Qwen-3.7-Plus、Deekseek-4.0-Pro等随时响应。
+- 🖼️ **多模型支持**：在APP随时切换大模型，通义Qwen-3.8-Max、Deekseek-4.0-Pro等随时响应。
 - ⚖️ **负载均衡**：支持多账户轮询，可同时使用多个账户保证文生图的token消耗。
 - 💰 **免费无限量**：使用文字对话无限量无费用；文生图等需要消耗token，可通过中国移动APP领取及购买
 
@@ -43,6 +43,7 @@ yun139:
       user_id: "10...."
       source_channel: "101"
 ```
+<img width="1606" height="1022" alt="139Token" src="https://github.com/user-attachments/assets/0e4252bb-e2ee-4c64-b19f-f99ef2065088" />
 
 ### 启动服务
 
