@@ -71,26 +71,47 @@ python run.py
 
 ### 主要模型参数
 description: "通义qwen3.8-Max"
+
   enableNetworkSearch: true
+  
   enableSetThinking: true
+  
   hasExclusive: false
+  
   iconUrl: "https://yun.mcloud.139.com/aiassistant/static/icon/qwen.svg"
+  
   maxInputLength: 800000
+  
   modelType: "blian_qwen38_max"
+  
 description: "DeepSeek-V4-Pro"
+
   enableNetworkSearch: true
+  
   enableSetThinking: true
+  
   hasExclusive: false
+  
   iconUrl: "https://yun.mcloud.139.com/aiassistant/static/icon/deepseek.svg"
+  
   maxInputLength: 40000
+  
   modelType: "blian_deepseek_v4_pro"
+  
 description: "豆包-Seed-2.0-Lite"
+
   enableNetworkSearch: true
+  
   enableSetThinking: true
+  
   hasExclusive: false
+  
   iconUrl: "https://yun.mcloud.139.com/aiassistant/static/icon/huoshan.png"
+  
   maxInputLength: 40000
+  
   modelType: "vlm_huoshan_2_0_lite_thinking_vision"
+  
 
 ## 免责声明
 
