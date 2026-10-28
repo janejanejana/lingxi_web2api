@@ -6,6 +6,79 @@ import uuid
 from typing import Any
 
 _JSON_BLOCK_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
+_TOOL_CALL_FENCE = "```json"
+_TOOL_CALL_KEY = '\"tool_calls\"'
+
+
+def _tool_call_prefix_status(candidate: str) -> str:
+    remainder = candidate[len(_TOOL_CALL_FENCE):]
+    position = 0
+    while position < len(remainder) and remainder[position].isspace():
+        position += 1
+    if position == len(remainder):
+        return "possible"
+    if remainder[position] != "{":
+        return "invalid"
+    position += 1
+    while position < len(remainder) and remainder[position].isspace():
+        position += 1
+    key_prefix = remainder[position:]
+    if len(key_prefix) < len(_TOOL_CALL_KEY):
+        return "possible" if _TOOL_CALL_KEY.startswith(key_prefix) else "invalid"
+    return "match" if key_prefix.startswith(_TOOL_CALL_KEY) else "invalid"
+
+
+class ToolCallStreamFilter:
+    """Pass ordinary text through while withholding a likely tool-call block."""
+
+    def __init__(self) -> None:
+        self._candidate = ""
+        self._withholding = False
+        self._held = ""
+
+    def feed(self, delta: str) -> str:
+        if self._withholding:
+            self._held += delta
+            return ""
+
+        text = self._candidate + delta
+        self._candidate = ""
+        output: list[str] = []
+
+        while text:
+            marker_at = text.find(_TOOL_CALL_FENCE)
+            if marker_at < 0:
+                marker_prefix_length = min(len(text), len(_TOOL_CALL_FENCE) - 1)
+                while marker_prefix_length and not _TOOL_CALL_FENCE.startswith(text[-marker_prefix_length:]):
+                    marker_prefix_length -= 1
+                output.append(text[:-marker_prefix_length] if marker_prefix_length else text)
+                self._candidate = text[-marker_prefix_length:] if marker_prefix_length else ""
+                break
+
+            output.append(text[:marker_at])
+            self._candidate = _TOOL_CALL_FENCE
+            text = text[marker_at + len(_TOOL_CALL_FENCE):]
+
+            while text:
+                self._candidate += text[0]
+                text = text[1:]
+                status = _tool_call_prefix_status(self._candidate)
+                if status == "match":
+                    self._withholding = True
+                    self._held = self._candidate + text
+                    self._candidate = ""
+                    return "".join(output)
+                if status == "invalid":
+                    output.append(self._candidate)
+                    self._candidate = ""
+                    break
+
+        return "".join(output)
+
+    def finish(self, discard_tool_call: bool) -> str:
+        if self._withholding:
+            return "" if discard_tool_call else self._held
+        return self._candidate
 
 
 def build_tool_manifest(tools: list[dict] | None) -> str | None:

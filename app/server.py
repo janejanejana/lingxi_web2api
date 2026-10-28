@@ -19,7 +19,7 @@ from .context import (
     extract_last_user_text,
     looks_like_image_request,
 )
-from .tools import build_tool_manifest, extract_tool_calls
+from .tools import ToolCallStreamFilter, build_tool_manifest, extract_tool_calls
 from .upload import UploadError, upload_attachment
 
 logging.basicConfig(level=logging.INFO)
@@ -33,7 +33,7 @@ pool = ClientPool(cfg.yun139.clients)
 class ChatCompletionRequest(BaseModel):
     model: str | None = None
     messages: list[dict]
-    stream: bool = False
+    stream: bool = True
     tools: list[dict] | None = None
     tool_choice: object | None = None
 
@@ -200,12 +200,13 @@ async def chat_completions(body: ChatCompletionRequest, authorization: str | Non
             return JSONResponse(status_code=502, content={"error": {"message": str(e)}})
 
         logger.info("[%s] request done in %.1fs — reply_len=%d", id_, time.monotonic() - t0, len(full_text))
-        tool_calls = extract_tool_calls(full_text) if cfg.tools.enabled else None
+        tool_calls = extract_tool_calls(full_text) if tool_manifest else None
         visible_text = full_text if not tool_calls else ""
         return sse.completion(id_, created, model_id, visible_text, tool_calls)
 
     async def event_stream():
         full_text = ""
+        tool_stream_filter = ToolCallStreamFilter() if tool_manifest else None
         # Announce the assistant role before any content — some
         # OpenAI-compatible clients rely on this to correctly initialize
         # the message object (same fix applied in the Node version).
@@ -251,16 +252,12 @@ async def chat_completions(body: ChatCompletionRequest, authorization: str | Non
 
                 if delta:
                     full_text += delta
-                    # While tool-calling is enabled we can't know a chunk is
-                    # "safe" plain content until we see whether the full
-                    # reply turns out to contain a tool_calls JSON block —
-                    # so buffer and only stream deltas live when tools are
-                    # off. With tools on, emit at the end instead.
-                    if not cfg.tools.enabled:
+                    visible_delta = tool_stream_filter.feed(delta) if tool_stream_filter else delta
+                    if visible_delta:
                         yield sse.sse(
                             sse.chunk(
                                 id_, created, model_id,
-                                {"content": delta}, None,
+                                {"content": visible_delta}, None,
                             )
                         )
                 if is_final:
@@ -272,17 +269,16 @@ async def chat_completions(body: ChatCompletionRequest, authorization: str | Non
             return
 
         logger.info("[%s] request done in %.1fs — reply_len=%d", id_, time.monotonic() - t0, len(full_text))
-        tool_calls = extract_tool_calls(full_text) if cfg.tools.enabled else None
-        if cfg.tools.enabled and not tool_calls:
-            # Nothing streamed live above (tools mode buffers) — flush the
-            # whole reply now.
-            yield sse.sse(
-                sse.chunk(
-                    id_, created, model_id,
-                    {"content": full_text}, None,
+        tool_calls = extract_tool_calls(full_text) if tool_manifest else None
+        if tool_stream_filter:
+            remaining = tool_stream_filter.finish(discard_tool_call=bool(tool_calls))
+            if remaining:
+                yield sse.sse(
+                    sse.chunk(
+                        id_, created, model_id,
+                        {"content": remaining}, None,
+                    )
                 )
-            )
-
         if tool_calls:
             yield sse.sse(
                 sse.chunk(id_, created, model_id, {"tool_calls": tool_calls}, None)
