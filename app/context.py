@@ -57,10 +57,10 @@ def _flatten_content(content: Any) -> str:
 
 
 DEFAULT_IMAGE_INTENT_KEYWORDS = [
-    "生成图片", "生成一张图", "生成一幅", "生成配图", "生成插画",
-    "画一张", "画个", "画一幅", "帮我画", "配一张图", "文生图",
-    "生成海报", "生成海报图", "生成壁纸", "生成头像", "生成插画",
-    "生成图像", "生成视觉", "做一张图", "做个图", "绘制图片",
+    "生成图片：", "生成一张图：", "生成一幅：", "生成配图：", "生成插画：",
+    "画一张：", "画个：", "画一幅：", "帮我画：", "配一张图：", "文生图：",
+    "生成海报：", "生成海报图：", "生成壁纸：", "生成头像：", "生成插画：",
+    "生成图像：", "生成视觉：", "做一张图：", "做个图：", "绘制图片：",
     "draw a picture", "draw an image", "generate an image",
     "generate a picture", "create an image", "text-to-image", "image generation",
     "generate a poster", "create a poster", "render an image", "make a picture",
@@ -91,7 +91,7 @@ def looks_like_image_request(text: str, keywords: list[str]) -> bool:
     compact = "".join(ch for ch in lowered if not ch.isspace())
     return any(
         token in compact
-        for token in ["画图", "出图", "生成图", "文生图", "generateimage", "drawimage", "makeimage", "createimage"]
+        for token in ["画图：", "出图：", "生成图：", "文生图：", "generateimage", "drawimage", "makeimage", "createimage"]
     )
 
 
