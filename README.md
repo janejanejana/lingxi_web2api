@@ -6,7 +6,7 @@
 
 将 中国移动 网页端模型灵犀封装为兼容 OpenAI API 的 API Server。受[Nativu5/Gemini-FastAPI](https://github.com/Nativu5/Gemini-FastAPI/) 启发，代码由Claude协助完成。
 
-**✅ 无需 API Key，免费通过 API 调用 通义Qwen-3.7-Plus、Deekseek-4.0-Pro、豆包Seed 2.0-lite（文生图）等模型！**
+**✅ 无需 API Key，免费通过 API 调用 通义Qwen-3.8-Max、Deekseek-4.0-Pro、豆包Seed 5.0-lite（文生图）等模型！**
 
 ## 功能特性
 
@@ -81,7 +81,7 @@ python run.py
     maxInputLength: 40000
     modelType: "blian_deepseek_v4_pro"
     
-  description: "豆包-Seed-2.0-Lite"
+  description: "豆包-Seed-5.0-Lite"
     enableNetworkSearch: true
     enableSetThinking: true
     maxInputLength: 40000
